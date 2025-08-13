@@ -87,30 +87,30 @@ async fn main() -> Result<()> {
             async move {
                 let basename = url::Url::parse(url)
                     .ok()
-                    .and_then(|u| u.path_segments()?.last().map(|s| s.to_owned()))
+                    .and_then(|u| u.path_segments()?.next_back().map(std::borrow::ToOwned::to_owned))
                     .unwrap_or_else(|| "unknown".into());
 
                 if Path::new(&basename).exists() {
-                    println!("跳过（已存在）：{}", basename);
+                    println!("跳过（已存在）：{basename}");
                     return Ok(());
                 }
 
-                println!("开始下载：{} -> {}", url, basename);
+                println!("开始下载：{url} -> {basename}");
 
                 let resp = client.get(*url).send().await
-                    .with_context(|| format!("请求失败：{}", url))?;
+                    .with_context(|| format!("请求失败：{url}"))?;
                 let mut stream = resp.bytes_stream();
 
                 let mut file = tokio::fs::File::create(&basename).await
-                    .with_context(|| format!("创建文件失败：{}", basename))?;
+                    .with_context(|| format!("创建文件失败：{basename}"))?;
 
                 while let Some(chunk) = stream.next().await {
-                    let chunk = chunk.with_context(|| format!("下载流中断：{}", url))?;
+                    let chunk = chunk.with_context(|| format!("下载流中断：{url}"))?;
                     tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await
-                        .with_context(|| format!("写入文件失败：{}", basename))?;
+                        .with_context(|| format!("写入文件失败：{basename}"))?;
                 }
 
-                println!("完成：{}", basename);
+                println!("完成：{basename}");
                 Ok::<(), anyhow::Error>(())
             }
         })
