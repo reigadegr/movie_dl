@@ -7,6 +7,9 @@
     clippy::correctness
 )]
 
+#[global_allocator]
+static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+
 use std::path::Path;
 use futures::stream::{self, StreamExt};
 use anyhow::{Context, Result};
