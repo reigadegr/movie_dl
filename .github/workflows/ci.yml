@@ -29,7 +29,7 @@ jobs:
           rustup update
       - name: Build
         run: |
-          cargo +nightly build --release -Z trim-paths
+          cargo +nightly build --release -Z trim-paths -Z build-std
 
       - name: Upload release version
         uses: actions/upload-artifact@v4

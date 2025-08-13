@@ -10,3 +10,19 @@ mimalloc = "0.1.47"
 reqwest  = { version = "0.12.23", features = ["stream"] }
 tokio = { version = "1.47.1", features = ["full"] }
 url = "2.5.4"
+
+[profile.dev]
+debug = 0
+debug-assertions = true
+panic = "abort"
+incremental = true
+
+[profile.release]
+overflow-checks = false
+codegen-units = 1
+lto = "fat"
+opt-level = 'z'
+strip = true
+debug = 0
+debug-assertions = false
+incremental = true

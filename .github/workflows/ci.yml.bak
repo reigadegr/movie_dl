@@ -27,10 +27,6 @@ jobs:
           rustup default nightly
           rustup component add rust-src llvm-tools-preview
           rustup update
-      - name: Other deps
-        run: |
-          sudo apt update
-          sudo apt install gcc-multilib llvm clang make cmake
       - name: Build
         run: |
           cargo +nightly build --release -Z trim-paths
