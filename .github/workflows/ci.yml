@@ -34,6 +34,6 @@ jobs:
       - name: Upload release version
         uses: actions/upload-artifact@v4
         with:
-          name: thread-opt(release)
+          name: movie_downloader(release)
           compression-level: 9
-          path: target/release/movie_dl
+          path: target/release/movie_dl.exe
