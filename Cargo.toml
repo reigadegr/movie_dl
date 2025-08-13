@@ -1,0 +1,11 @@
+[package]
+name = "movie_dl"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.99"
+futures = "0.3.31"
+reqwest  = { version = "0.12.23", features = ["stream"] }
+tokio = { version = "1.47.1", features = ["full"] }
+url = "2.5.4"
