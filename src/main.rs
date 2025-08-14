@@ -10,9 +10,13 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-use std::path::Path;
-use futures::stream::{self, StreamExt};
 use anyhow::{Context, Result};
+use futures_util::StreamExt;
+use reqwest::Client;
+use std::path::Path;
+use std::time::Duration;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 
 const URLS: &[&str] = &[
     "https://ghfast.top/https://github.com/reigadegr/movie_mp4/releases/download/v1.0.0/NeZha2.z01",
@@ -77,52 +81,60 @@ const URLS: &[&str] = &[
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // 并发度：同时最多下载 N 个文件，可自行调整
-    const CONCURRENT: usize = 8;
-
-    let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(60))
+    let client = Client::builder()
+        .timeout(Duration::from_secs(3600)) // 1小时超时
+        .connect_timeout(Duration::from_secs(30))
         .build()?;
 
-    stream::iter(URLS)
-        .map(|url| {
-            let client = &client;
-            async move {
-                let basename = url::Url::parse(url)
-                    .ok()
-                    .and_then(|u| u.path_segments()?.next_back().map(std::borrow::ToOwned::to_owned))
-                    .unwrap_or_else(|| "unknown".into());
+    for url in URLS {
+        // 从URL中提取文件名
+        let file_name = url
+            .split('/')
+            .next_back()
+            .with_context(|| format!("无法从URL提取文件名: {url}"))?;
 
-                if Path::new(&basename).exists() {
-                    println!("跳过（已存在）：{basename}");
-                    return Ok(());
-                }
+        // 检查文件是否已存在
+        if Path::new(file_name).exists() {
+            println!("文件已存在，跳过: {file_name}");
+            continue;
+        }
 
-                println!("开始下载：{url} -> {basename}");
+        println!("开始下载: {file_name}");
 
-                let resp = client.get(*url).send().await
-                    .with_context(|| format!("请求失败：{url}"))?;
-                let mut stream = resp.bytes_stream();
+        // 发送请求
+        let response = client
+            .get(*url)
+            .send()
+            .await
+            .with_context(|| format!("请求失败: {url}"))?;
 
-                let mut file = tokio::fs::File::create(&basename).await
-                    .with_context(|| format!("创建文件失败：{basename}"))?;
+        // 检查HTTP状态
+        if !response.status().is_success() {
+            anyhow::bail!("下载失败: {} - 状态码: {}", file_name, response.status());
+        }
 
-                while let Some(chunk) = stream.next().await {
-                    let chunk = chunk.with_context(|| format!("下载流中断：{url}"))?;
-                    tokio::io::AsyncWriteExt::write_all(&mut file, &chunk).await
-                        .with_context(|| format!("写入文件失败：{basename}"))?;
-                }
+        // 创建文件
+        let mut file = File::create(file_name)
+            .await
+            .with_context(|| format!("无法创建文件: {file_name}"))?;
 
-                println!("完成：{basename}");
-                Ok::<(), anyhow::Error>(())
-            }
-        })
-        .buffer_unordered(CONCURRENT)
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>>>()?;
+        // 流式下载并写入文件
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk?;
+            file.write_all(&chunk)
+                .await
+                .with_context(|| format!("写入文件失败: {file_name}"))?;
+        }
 
-    println!("全部下载完成！");
+        // 确保所有数据都写入磁盘
+        file.sync_all()
+            .await
+            .with_context(|| format!("同步文件失败: {file_name}"))?;
+
+        println!("下载完成: {file_name}");
+    }
+
+    println!("所有文件下载完成!");
     Ok(())
 }
